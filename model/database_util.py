@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import csv
 import torch
+import re
+import zlib
 
 ## bfs shld be enough
 def floyd_warshall_rewrite(adjacency_matrix):
@@ -256,14 +258,13 @@ def formatJoin(json_node):
     elif 'Index Cond' in json_node and not json_node['Index Cond'][-2].isnumeric():
         join = json_node['Index Cond']
     
-    ## sometimes no alias, say t.id 
-    ## remove repeat (both way are the same)
     if join is not None:
-
-        twoCol = join[1:-1].split(' = ')
-        twoCol = [json_node['Alias'] + '.' + col 
-                  if len(col.split('.')) == 1 else col for col in twoCol ] 
-        join = ' = '.join(sorted(twoCol))
+        columns = join.strip('()').split(' = ')
+        if len(columns) == 2:
+            alias = json_node.get('Alias')
+            columns = [alias + '.' + column if alias and '.' not in column
+                       else column for column in columns]
+            join = ' = '.join(sorted(columns))
     
     return join
     
@@ -320,27 +321,36 @@ class Encoding:
             val_norm = (val-mini) / (maxi-mini)
         return val_norm
     
-    def encode_filters(self, filters=[], alias=None): 
-        ## filters: list of dict 
-
-#        print(filt, alias)
-        if len(filters) == 0:
-            return {'colId':[self.col2idx['NA']],
-                   'opId': [self.op2idx['NA']],
-                   'val': [0.0]} 
-        res = {'colId':[],'opId': [],'val': []}
-        for filt in filters:
-            filt = ''.join(c for c in filt if c not in '()')
-            fs = filt.split(' AND ')
-            for f in fs:
-     #           print(filters)
-                col, op, num = f.split(' ')
-                column = alias + '.' + col
-    #            print(f)
-                
+    def encode_filters(self, filters=(), alias=None, table=None):
+        res = {'colId': [], 'opId': [], 'val': []}
+        pattern = re.compile(
+            r"(?P<column>[A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?)\s*"
+            r"(?P<op>>=|<=|=|>|<)\s*"
+            r"(?P<value>'(?:''|[^'])*'(?:\s*::[\w\s\[\].]+)?|[-+]?\d+(?:\.\d+)?)"
+        )
+        for expression in filters:
+            for match in pattern.finditer(expression):
+                column = match.group('column')
+                if '.' not in column and alias:
+                    column = alias + '.' + column
+                if column not in self.col2idx and table and '.' in column:
+                    column = table + '.' + column.split('.', 1)[1]
+                if column not in self.col2idx:
+                    continue
+                literal = match.group('value').split('::', 1)[0].strip()
+                if literal.startswith("'"):
+                    value = zlib.crc32(literal[1:-1].replace("''", "'").encode()) / 0xffffffff
+                else:
+                    value = self.normalize_val(column, float(literal))
+                operator = {'>=': '>', '<=': '<'}.get(match.group('op'), match.group('op'))
                 res['colId'].append(self.col2idx[column])
-                res['opId'].append(self.op2idx[op])
-                res['val'].append(self.normalize_val(column, float(num)))
+                res['opId'].append(self.op2idx[operator])
+                res['val'].append(value)
+                if len(res['colId']) == 3:
+                    return res
+        if not res['colId']:
+            return {'colId': [self.col2idx['NA']],
+                    'opId': [self.op2idx['NA']], 'val': [0.0]}
         return res
     
     def encode_join(self, join):
@@ -400,8 +410,6 @@ class TreeNode:
         for k in node.children: 
             TreeNode.print_nested(k, indent+1)
         
-
-
 
 
 

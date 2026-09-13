@@ -149,7 +149,9 @@ class PlanTreeDataset(Dataset):
         filters, alias = formatFilter(plan)
         join = formatJoin(plan)
         joinId = encoding.encode_join(join)
-        filters_encoded = encoding.encode_filters(filters, alias)
+        filters_encoded = encoding.encode_filters(
+            filters, alias, plan.get('Relation Name')
+        )
         
         root = TreeNode(nodeType, typeId, filters, card, joinId, join, filters_encoded)
         
