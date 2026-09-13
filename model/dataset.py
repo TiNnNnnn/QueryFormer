@@ -9,7 +9,7 @@ from .database_util import formatFilter, formatJoin, TreeNode, filterDict2Hist
 from .database_util import *
 
 class PlanTreeDataset(Dataset):
-    def __init__(self, json_df : pd.DataFrame, train : pd.DataFrame, encoding, hist_file, card_norm, cost_norm, to_predict, table_sample):
+    def __init__(self, json_df : pd.DataFrame, train : pd.DataFrame, encoding, hist_file, card_norm, cost_norm, to_predict, table_sample, max_node=None):
 
         self.table_sample = table_sample
         self.encoding = encoding
@@ -19,6 +19,7 @@ class PlanTreeDataset(Dataset):
         # train = train.loc[json_df['id']]
         
         nodes = [json.loads(plan)['Plan'] for plan in json_df['json']]
+        self.max_node = max_node or max(self.count_nodes(node) for node in nodes)
         self.cards = [node['Actual Rows'] for node in nodes]
         self.costs = [json.loads(plan)['Execution Time'] for plan in json_df['json']]
         
@@ -47,12 +48,19 @@ class PlanTreeDataset(Dataset):
     def js_node2dict(self, idx, node):
         treeNode = self.traversePlan(node, idx, self.encoding)
         _dict = self.node2dict(treeNode)
-        collated_dict = self.pre_collate(_dict)
+        collated_dict = self.pre_collate(_dict, self.max_node)
         
         self.treeNodes.clear()
         del self.treeNodes[:]
 
         return collated_dict
+
+    @staticmethod
+    def count_nodes(node):
+        return 1 + sum(
+            PlanTreeDataset.count_nodes(child)
+            for child in node.get('Plans', [])
+        )
 
     def __len__(self):
         return self.length

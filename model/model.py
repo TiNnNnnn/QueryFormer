@@ -156,7 +156,8 @@ class QueryFormer(nn.Module):
     def __init__(self, emb_size = 32 ,ffn_dim = 32, head_size = 8, \
                  dropout = 0.1, attention_dropout_rate = 0.1, n_layers = 8, \
                  use_sample = True, use_hist = True, bin_number = 50, \
-                 pred_hid = 256
+                 pred_hid = 256, tables = 10, types = 20, joins = 40, \
+                 columns = 30
                 ):
         
         super(QueryFormer,self).__init__()
@@ -184,7 +185,11 @@ class QueryFormer(nn.Module):
         self.super_token_virtual_distance = nn.Embedding(1, head_size)
         
         
-        self.embbed_layer = FeatureEmbed(emb_size, use_sample = use_sample, use_hist = use_hist, bin_number = bin_number)
+        self.embbed_layer = FeatureEmbed(
+            emb_size, tables=tables, types=types, joins=joins,
+            columns=columns, use_sample=use_sample, use_hist=use_hist,
+            bin_number=bin_number
+        )
         
         self.pred = Prediction(hidden_dim, pred_hid)
 
@@ -321,7 +326,6 @@ class EncoderLayer(nn.Module):
         y = self.ffn_dropout(y)
         x = x + y
         return x
-
 
 
 
