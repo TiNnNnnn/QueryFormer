@@ -4,6 +4,7 @@ import csv
 import torch
 import re
 import zlib
+from datetime import date, datetime
 
 ## bfs shld be enough
 def floyd_warshall_rewrite(adjacency_matrix):
@@ -213,7 +214,11 @@ def filterDict2Hist(hist_file, filterDict, encoding):
         if col == 'NA':
             ress[i] = empty
             continue
-        bins = hist_file.loc[hist_file['table_column']==col,'bins'].item()
+        matches = hist_file.loc[hist_file['table_column'] == col, 'bins']
+        if matches.empty:
+            ress[i] = empty
+            continue
+        bins = matches.item()
         
         opId = filterDict['opId'][0]
         op = encoding.idx2op[opId]
@@ -320,6 +325,20 @@ class Encoding:
         if maxi > mini:
             val_norm = (val-mini) / (maxi-mini)
         return val_norm
+
+    @staticmethod
+    def literal_value(text):
+        text = text.strip("'").replace("''", "'")
+        try:
+            return float(text)
+        except ValueError:
+            try:
+                return float(datetime.fromisoformat(text).timestamp())
+            except ValueError:
+                try:
+                    return float(date.fromisoformat(text).toordinal())
+                except ValueError:
+                    return zlib.crc32(text.encode()) / 0xffffffff
     
     def encode_filters(self, filters=(), alias=None, table=None):
         res = {'colId': [], 'opId': [], 'val': []}
@@ -338,10 +357,7 @@ class Encoding:
                 if column not in self.col2idx:
                     continue
                 literal = match.group('value').split('::', 1)[0].strip()
-                if literal.startswith("'"):
-                    value = zlib.crc32(literal[1:-1].replace("''", "'").encode()) / 0xffffffff
-                else:
-                    value = self.normalize_val(column, float(literal))
+                value = self.normalize_val(column, self.literal_value(literal))
                 operator = {'>=': '>', '<=': '<'}.get(match.group('op'), match.group('op'))
                 res['colId'].append(self.col2idx[column])
                 res['opId'].append(self.op2idx[operator])
@@ -410,6 +426,4 @@ class TreeNode:
         for k in node.children: 
             TreeNode.print_nested(k, indent+1)
         
-
-
 

@@ -21,7 +21,9 @@ class PlanTreeDataset(Dataset):
         nodes = [json.loads(plan)['Plan'] for plan in json_df['json']]
         self.max_node = max_node or max(self.count_nodes(node) for node in nodes)
         self.cards = [node['Actual Rows'] for node in nodes]
-        self.costs = [json.loads(plan)['Execution Time'] for plan in json_df['json']]
+        self.costs = (list(json_df['label_duration_ms'])
+                      if 'label_duration_ms' in json_df
+                      else [json.loads(plan)['Execution Time'] for plan in json_df['json']])
         
         self.card_labels = torch.from_numpy(card_norm.normalize_labels(self.cards))
         self.cost_labels = torch.from_numpy(cost_norm.normalize_labels(self.costs))
@@ -218,7 +220,7 @@ def node2feature(node, encoding, hist_file, table_sample):
     if node.table_id == 0:
         sample = np.zeros(1000)
     else:
-        sample = table_sample[node.query_id][node.table]
+        sample = table_sample[node.query_id].get(node.table, np.zeros(1000))
     
     #return np.concatenate((type_join,filts,mask))
     return np.concatenate((type_join, filts, mask, hists, table, sample))
