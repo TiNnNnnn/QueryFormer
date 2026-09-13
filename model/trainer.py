@@ -132,10 +132,8 @@ def train(model, train_ds, val_ds, crit, \
             torch.nn.utils.clip_grad_norm_(model.parameters(), clip_size)
 
             optimizer.step()
-            # SQ: added the following 3 lines to fix the out of memory issue
             del batch
             del batch_labels
-            torch.cuda.empty_cache()
 
             losses += loss.item()
             cost_predss = np.append(cost_predss, cost_preds.detach().cpu().numpy())
@@ -187,4 +185,4 @@ def logging(args, epoch, qscores, filename = None, save_model = False, model = N
             'args' : args
         }, model_checkpoint)
     
-    return res['model']  
+    return res['model']

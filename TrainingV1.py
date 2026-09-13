@@ -14,6 +14,7 @@ from model.model import QueryFormer
 from model.database_util import Encoding
 from model.dataset import PlanTreeDataset
 from model.trainer import eval_workload, train
+from model.device import resolve_device
 
 # %%
 data_path = './data/imdb/'
@@ -34,7 +35,7 @@ class Args:
     n_layers = 8
     dropout = 0.1
     sch_decay = 0.6
-    device = 'cuda:0'
+    device = resolve_device(os.environ.get('RETROSLOW_TORCH_DEVICE', 'auto'))
     newpath = './results/full/cost/'
     to_predict = 'cost'
 args = Args()
@@ -49,9 +50,13 @@ cost_norm = Normalizer(-3.61192, 12.290855)
 card_norm = Normalizer(1,100)
 
 # %%
-encoding_ckpt = torch.load('checkpoints/encoding.pt')
+encoding_ckpt = torch.load(
+    'checkpoints/encoding.pt', map_location='cpu', weights_only=False
+)
 encoding = encoding_ckpt['encoding']
-checkpoint = torch.load('checkpoints/cost_model.pt', map_location='cpu')
+checkpoint = torch.load(
+    'checkpoints/cost_model.pt', map_location='cpu', weights_only=False
+)
 
 # %%
 from model.util import seed_everything
@@ -143,6 +148,4 @@ _ = eval_workload('synthetic', methods)
 
 
 # %%
-
-
 
